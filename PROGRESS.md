@@ -60,6 +60,22 @@
 
 ---
 
+## 2026-10-10 (3) — Xác minh kết nối sau khi cập nhật 2 key Supabase
+
+**Đã cập nhật:** `SUPABASE_ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` (project `nvcanmdfdmyllvopxdst`).
+
+### Kết quả
+
+| Thử | Lệnh / endpoint | Kết quả |
+|---|---|---|
+| 1 | `python -X utf8 -m app.tests.test_db` | **2/2 xanh**: `SQLAlchemy (PostgreSQL IPv4)` + `Supabase API (Service Role)` |
+| 2 | Inspect DB đích | PostgreSQL 17.6, `postgres/postgres`, 13 bảng public (`AiConfig`, `CiplItem`, `CiplRecord`, `Client`, `Document`, `MasterPart`, `RFQ`, `RFQItem`, `Supplier`, `Task`, `User`, `_cbu_v2_margin_backup`, `_prisma_migrations`), 5 migration, `User=5`, `RFQ=36` (đúng webapp production) |
+| 3 | `python -X utf8 -m app.tests.test_msgraph` | Lấy token OK (2158 ký tự), **gửi mail thật thành công** từ `drilling@psbvn.com` tới `hotrung060605@gmail.com` |
+| 4 | `python -m uvicorn app.main:app` | `GET /` 200, `GET /api/ingestion/status` 200 — `running:true`, `within_active_window:true`, `last_error:null`; Supabase REST đọc đúng `User` (`admin@psbv.com`/ADMIN…) và `RFQ` (`RFO_PSBV_2026_001`/`INQUIRY_RECEIVED`) |
+| **Kết luận SPEC G0.1** | | **xong** — 3 bug key đã giải quyết, DB đã ở project đích (Q1). Tiếp theo: **G0.2** (B1–B3) → **G1**. |
+
+---
+
 ### Tiếp theo (theo SPEC Phần I)
 
 - **G0.1:** điền 2 dòng còn thiếu vào `.env` → backend chạy lại 200.

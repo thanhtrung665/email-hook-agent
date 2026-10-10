@@ -69,9 +69,11 @@
 - [x] **Dọn `.env`** — gộp 2 khối cấu hình rời rạc thành 1 file nhất quán (39 dòng, chú thích rõ phần email-agent / webapp), chuẩn hoá tên biến theo `config.py` (`SUPABASE_SERVICE_ROLE_KEY`; `MS_*` lấy giá trị từ `AZURE_*`; thêm `SUPABASE_URL`, `WEBHOOK_BASE_URL`, `MS_TARGET_MAILBOX`), để mặc định `AGENT_*`/`INGESTION_*` ở dạng comment — *đã làm 2026-10-10*.
 - [x] Đổi `DATABASE_URL` + `SUPABASE_URL` sang **project webapp `nvcanmdfdmyllvopxdst`** (theo Q1) — *đã làm 2026-10-10*.
 - [x] `Settings` import OK; SQLAlchemy kết nối DB đích thành công (`app.tests.test_db` bước 1 xanh).
-- [ ] **CẦN BẠN LÀM:** `SUPABASE_ANON_KEY` trong `.env` vẫn là key của project **cũ** (`dmllfbs…`), còn `SUPABASE_SERVICE_ROLE_KEY` trỏ đúng project nhưng **role là `anon` chứ không phải `service_role`** → bước 2 của `test_db` báo `User not allowed`. Lấy 2 key đúng ở **Supabase Dashboard → Project Settings → API** (project `nvcanmdfdmyllvopxdst`) rồi thay 2 dòng.
-- [ ] Chạy lại `python -m uvicorn app.main:app --reload` → `GET /` 200, `GET /api/ingestion/status` 200.
-- [ ] Chạy lại `python -X utf8 -m app.tests.test_db` → 2/2 OK.
+- [x] **2 key Supabase đã được người dùng cập nhật** (`SUPABASE_ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` của project `nvcan…`) — *đã làm 2026-10-10*.
+- [x] `python -X utf8 -m app.tests.test_db` → **2/2 xanh** (SQLAlchemy + Supabase REST API).
+- [x] `python -X utf8 -m app.tests.test_msgraph` → lấy token OK (2158 ký tự), **gửi mail thật thành công** từ `drilling@psbvn.com`.
+- [x] Backend `python -m uvicorn app.main:app` → `GET /` 200, `GET /api/ingestion/status` 200 (`running:true`, `within_active_window:true`, `last_error:null`).
+- [x] Xác nhận DB đích = **webapp production**: PostgreSQL 17.6, 13 bảng public, 5 migration đã áp, `User`=5, `RFQ`=36. Supabase REST đọc đúng (`admin@psbv.com`/ADMIN…).
 - [ ] Nếu test webhook: `python -X utf8 app/tests/subscribe_webhook.py` với `WEBHOOK_BASE_URL` public (ngrok). Nếu chỉ chạy poll thì giữ `INGESTION_ENABLED=true`, bỏ qua webhook.
 
 ### G0.2 — Sửa bug đã biết (email-agent)
