@@ -120,7 +120,13 @@
 
 ---
 
-### G1.2 — Gộp schema: file SQL đã sẵn sàng (chờ bạn chạy 1 lần thủ công)
+### G1.2 — Gộp schema đã xong (2026-10-10)
+
+- 10 bảng mới (`labels`=14, `mailboxes`=1, `emails`=2, `email_labels`=5, `contacts`=2…), dữ liệu Prisma y nguyên (RFQ 36, Client 19…).
+- Gắn nhãn AI hoạt động: `SHIPMENT_DOCUMENT` (0.85), `EXCEPTION` (0.95).
+- HITL gắn nhãn: `EXCEPTION→HUMAN_MANAGER/ESCALATED`, `QUOTE→QUOTE_AGENT/PROCESSING`, đổi nhãn tự bỏ `is_primary` cũ — đã test idempotency.
+
+### G1.2 — Gộp schema đã sẵn sàng (chờ bạn chạy 1 lần thủ công)
 
 - [x] File **`scripts/g1_2_create_email_agent_schema.sql`** (viết lại đầy đủ, 262 dòng) — CHỈ THÊM, không DROP/DELETE/ALTER bất kỳ bảng Prisma nào. Tạo:
   - 8 bảng email-agent (`mailboxes`, `contacts`, `labels`, `emails`, `email_labels`, `attachments`, `email_summaries`, `email_cards`) — khớp 1-1 với `app/db/models.py` (+ `cc_emails`/`bcc_emails` từ Giai đoạn 5).

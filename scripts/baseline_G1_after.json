@@ -1,0 +1,28 @@
+{
+  "when": "2026-10-10T05:40:38+00:00",
+  "tables": {
+    "AiConfig": 1,
+    "CiplItem": 0,
+    "CiplRecord": 0,
+    "Client": 19,
+    "Document": 45,
+    "MasterPart": 0,
+    "RFQ": 36,
+    "RFQItem": 168,
+    "Supplier": 3,
+    "Task": 8,
+    "User": 5,
+    "_cbu_v2_margin_backup": 158,
+    "_prisma_migrations": 5,
+    "agent_configs": 0,
+    "agent_runs": 0,
+    "attachments": 0,
+    "contacts": 2,
+    "email_cards": 0,
+    "email_labels": 5,
+    "email_summaries": 2,
+    "emails": 2,
+    "labels": 14,
+    "mailboxes": 1
+  }
+}

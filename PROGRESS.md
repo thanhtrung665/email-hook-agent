@@ -90,6 +90,31 @@
 
 ---
 
+## 2026-10-10 (5) — Gộp schema xong: kiểm chứng C1–C5 xanh, pipeline chạy thật trên DB đích
+
+### Kiểm chứng (người dùng chạy SQL trong Supabase SQL Editor + tôi đối chiếu trực tiếp)
+
+| Câu | Kỳ vọng | Thực tế |
+|---|---|---|
+| C1 (10 bảng mới) | 10/10 | **10/10**: agent_configs, agent_runs, attachments, contacts, email_cards, email_labels, email_summaries, emails, labels, mailboxes ✅ |
+| C2 (dữ liệu webapp) | RFQ=36, RFQItem=168, Client=19, Document=45, User=5, Task=8, Supplier=3, AiConfig=1 | **giữ nguyên 100%** ✅ |
+| C2b (bảng mới) | labels=14, còn lại 0 | ✅ |
+| C3 (14 nhãn) | 14 \| 10 \| 999 | ✅ |
+| C4 (`emails.rfq_id`) | 1 dòng text | ✅ |
+| C5 (migration) | 5/5 applied | ✅ (người dùng gửi ảnh, đối chiếu xong) |
+| Tổng bảng public | 23 | ✅ |
+
+### Pipeline chạy thật trên DB đích (2 email vào, 2 thành công)
+
+- Email `Open OP - ASA - 4565582`: AI gán `EXCEPTION` (0.95). HITL gán `EXCEPTION` → `ESCALATED`/`HUMAN_MANAGER`; gán lại lần 2 → vẫn 1 dòng `source=user` duy nhất (**B2 idempotent PASS**).
+- Email `RE: PSBV NEW ORDER 00286-26MVPO-KEYSTONE`: AI gán `SHIPMENT_DOCUMENT` (0.85) (**B3 hoạt động trên dữ liệu thật**). HITL gán `QUOTE` → `PROCESSING`/`QUOTE_AGENT`; đổi sang `SPAM_ADS` → `IGNORED`/`NONE`, nhãn cũ tự bỏ `is_primary` (**đổi nhãn PASS**).
+- 1 email lỗi talon (`AttributeError: NDArrayWrapper...`) — behavior cũ có try/except, không chặn pipeline.
+- Baseline trước/sau lưu tại `scripts/baseline_G1_before.json` / `scripts/baseline_G1_after.json`.
+
+**Trạng thái G1:** schema xong, nhãn AI + HITL xác minh end-to-end trên DB đích. Tiếp theo: **G2** (điểm nối Inbound: email Inquiry → RFQ).
+
+---
+
 ### Tiếp theo (theo SPEC Phần I)
 
 - **G0.1:** điền 2 dòng còn thiếu vào `.env` → backend chạy lại 200.
