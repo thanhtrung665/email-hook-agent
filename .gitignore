@@ -38,3 +38,6 @@ Thumbs.db
 
 # Bot file nhạy cảm
 *.bot
+
+# Repo webapp clone để nghiên cứu (giữ remote riêng, không commit vào repo này)
+psbv-saleadmin-app/
