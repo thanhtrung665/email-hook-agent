@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     WEBHOOK_BASE_URL: str
     WEBHOOK_SECRET: str = "PSBV16YenThe"
 
+    # Điểm nối sang webapp PSBV (SPEC G2 + P8 Email Gateway BFF)
+    WEBAPP_BASE_URL: str = "http://localhost:3000"
+    SERVICE_ROLE_SECRET: str = ""
+
     # ===== Lịch hoạt động của Agent =====
     # Múi giờ dùng để quyết định "mấy giờ là giờ làm" cho hòm thư
     AGENT_TIMEZONE: str = "Asia/Ho_Chi_Minh"

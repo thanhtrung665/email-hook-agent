@@ -126,7 +126,7 @@
 - Gắn nhãn AI hoạt động: `SHIPMENT_DOCUMENT` (0.85), `EXCEPTION` (0.95).
 - HITL gắn nhãn: `EXCEPTION→HUMAN_MANAGER/ESCALATED`, `QUOTE→QUOTE_AGENT/PROCESSING`, đổi nhãn tự bỏ `is_primary` cũ — đã test idempotency.
 
-### G1.2 — Gộp schema đã sẵn sàng (chờ bạn chạy 1 lần thủ công)
+### G1.2 — Gộp schema đã hoàn thành (2026-10-10)
 
 - [x] File **`scripts/g1_2_create_email_agent_schema.sql`** (viết lại đầy đủ, 262 dòng) — CHỈ THÊM, không DROP/DELETE/ALTER bất kỳ bảng Prisma nào. Tạo:
   - 8 bảng email-agent (`mailboxes`, `contacts`, `labels`, `emails`, `email_labels`, `attachments`, `email_summaries`, `email_cards`) — khớp 1-1 với `app/db/models.py` (+ `cc_emails`/`bcc_emails` từ Giai đoạn 5).
@@ -138,7 +138,7 @@
 
 - [x] Baseline trước gộp (`scripts/baseline_G1_before.json`, giờ UTC): `User`=5, `RFQ`=36, `RFQItem`=168, `Client`=19, `Document`=45, `Task`=8, `Supplier`=3, `AiConfig`=1, `CiplRecord`=0, `CiplItem`=0, `_cbu_v2_margin_backup`=158, `_prisma_migrations`=5.
 
-- [ ] **BẠN CHẠY (5 phút, 1 lần):** mở **Supabase Dashboard → project `nvcan…` → SQL Editor** → dán **toàn bộ** nội dung file → **Run** → chạy tiếp 5 câu kiểm chứng C1–C5 → gửi kết quả cho tôi (ảnh chụp hoặc copy text). Kỳ vọng: **23 bảng** (13 cũ + 10 mới), `RFQ` vẫn 36.
+- [x] **ĐÃ CHẠY (2026-10-10):** người dùng chạy trong SQL Editor → C1–C5 xanh (10/10 bảng mới, dữ liệu webapp giữ nguyên: RFQ=36, User=5…, 14 nhãn, `rfq_id` text). 23 bảng public.
 
 ## G2 — Điểm nối Inbound: Email → RFQ (3 ngày)
 
@@ -154,10 +154,10 @@
 - [ ] **Không** tự gửi mail, **không** đổi trạng thái sang `RFO_SENT_TO_SUPPLIER`.
 - [ ] Test: mock Gemini + mock Prisma, gọi thẳng handler (khuôn `__tests__/api/*.route.test.ts`).
 
-### G2.2 — Gửi từ email-agent
+### G2.2 — Gửi từ email-agent (chỉ SAU khi người dùng DUYỆT nhãn)
 
-- [ ] `app/services/email_processing_pipeline.py`: sau khi commit, nếu nhãn primary ∈ {`INQUIRY`} → `asyncio`/worker gửi `POST {WEBAPP_BASE_URL}/api/email/inbound` với `SERVICE_ROLE_SECRET` (thêm vào `Settings`).
-- [ ] Retry + log; nếu webapp down → ghi `agent_runs` trạng thái `QUEUED`, worker G4 sẽ gửi lại.
+- [ ] **Theo P5:** pipeline **không** tự gọi inbound ngay. Chỉ khi người dùng DUYỆT nhãn `INQUIRY` (qua Email Gateway / POST approve) thì worker mới kích hoạt `INQUIRY_AGENT` → node I1–I6 của P6, trong đó I3 mới gọi `POST {WEBAPP_BASE_URL}/api/email/inbound` (Bearer `SERVICE_ROLE_SECRET`, thêm vào `Settings`).
+- [ ] Retry + log; nếu webapp down → ghi `agent_runs` `QUEUED`, worker thử lại. Không bao giờ đổi `RFQ.status` sang `RFO_SENT_TO_SUPPLIER` khi chưa qua màn duyệt I6.
 - [ ] Đặt trong worker nền (G4), **không** trong webhook handler (webhook phải trả 202 ngay).
 
 ### G2.3 — Điểm nối Quote (mở rộng, làm ngay nếu trơn tru)
@@ -196,25 +196,27 @@
 
 ---
 
-## G4 — Agent chạy thật (5 ngày)
+## G4 — Agent chạy thật (5 ngày) — ÁP DỤNG P5: mọi nhánh nhân lực đều qua DUYỆT, xem P6/P7
 
-**Mục tiêu:** `assigned_agent` không còn là chuỗi vô hồn — có worker, có bảng theo dõi, 3 agent đầu chạy thật.
+**Mục tiêu:** người duyệt nhãn xong → worker chạy đúng multi-agent (Inquiry/Quotation) với `agent_runs` checkpoint từng node.
 
-### G4.1 — Worker thực thi agent (email-agent)
+> **Thay G4.2 cũ:** G4.2 dưới đây thay bằng **P6 (Inquiry) + P7 (Quotation)** — 2 multi-agent đã mô tả chi tiết. Các agent nhãn còn lại sẽ bổ sung ở G5.1.
+
+### G4.1 — Worker thực thi agent (email-agent) — GIỮ NGUYÊN, chỉ thêm rào P5
 
 - [ ] Bảng `agent_runs` (G1.2) + model `AgentRun` trong `app/db/models.py`.
 - [ ] `app/services/agent_runner.py`: `run_agent_for_email(email_id)` — đọc nhãn primary → map `label → agent_name` → tìm module agent (`app/services/agents/<label>_agent.py`) → gọi → ghi `agent_runs` (`RUNNING` → `DONE`/`FAILED`) → nếu là điểm nối inbound (G2) thì gọi webapp.
-- [ ] Worker: `IngestionWorker` thêm nhánh poll `emails.status='PROCESSING' AND assigned_agent IS NOT NULL` (chu kỳ 30s), gọi `run_agent_for_email`. Tách hẳn luồng này khỏi luồng ingest (đừng chặn Graph delta).
+- [ ] Worker: **chỉ** chạy khi `POST /api/emails/{id}/approve` (DUYỆT) của P5 set `status='PROCESSING'` + `assigned_agent`. Poll `status='PROCESSING' AND assigned_agent IS NOT NULL` (30s) → `run_agent_for_email`. ***Không*** poll trên nhãn AI (`source=ai`) — chỉ poll trên nhãn **đã duyệt** (`source=user` qua approve).
 - [ ] **Retry/timeout:** tối đa 3 lần, backoff; LLM lỗi → `FAILED` + log; không bao giờ để `RUNNING` treo (timeout 120s).
 - [ ] **Quy tắc HITL:** agent **không bao giờ** gửi mail; nếu cần người duyệt → set `status='ESCALATED'` + `assigned_agent='HUMAN_MANAGER'`.
 
-### G4.2 — 3 agent đầu tiên
+### G4.2 — 2 agent đầu tiên (chi tiết đã chuyển vào P6/P7)
 
 | Agent | Nhãn | Việc làm | File |
 |---|---|---|---|
-| `INQUIRY_AGENT` | `INQUIRY` | Gọi điểm nối G2.1 → tạo RFQ | `app/services/agents/inquiry_agent.py` |
-| `QUOTE_AGENT` | `QUOTE` | Bóc PDF Quote (webapp `parseSupplierQuoteWithGemini` qua điểm nối G2.3) | `app/services/agents/quote_agent.py` |
-| `DOCUMENT_AGENT` | `AWB_BOL`, `SHIPMENT_DOCUMENT`, `DELIVERY_TICKET`, `ORDER_PICTURE`, `SOA` | Đọc nội dung/OCR, lưu metadata, **không** đổi status (enrich-only) | `app/services/agents/document_agent.py` |
+| `INQUIRY_AGENT` | `INQUIRY` | **6 node I1→I6** (P6): phát hiện file → bóc đúng công cụ → lưu RFQ → tạo RFO PDF (APITemplate) → soạn mail hỏi hãng → màn duyệt | `app/services/agents/inquiry_agent.py` |
+| `QUOTATION_AGENT` | `QUOTE` | **6 node Q1→Q6** (P7): match inquiry → bóc file giá → nhập tham số → tính CBU (`src/lib/cbu/`) → tạo Quotation PDF → soạn mail reply khách | `app/services/agents/quotation_agent.py` |
+| `DOCUMENT_AGENT` (G5) | `AWB_BOL`, `SHIPMENT_DOCUMENT`, `DELIVERY_TICKET`, `ORDER_PICTURE`, `SOA` | Đọc nội dung/OCR, lưu metadata, **không** đổi status (enrich-only) | G5.1 |
 
 ### G4.3 — Bảng theo dõi & API
 
@@ -282,6 +284,161 @@
   ```
   *Chỉ làm khi G0–G5 đã ổn định* — gộp repo sớm làm chậm mọi việc khác.
 - [ ] Stack nâng cấp (giữ nguyên mục "Advanced Stack" SPEC gốc): Caddy + Prometheus + Grafana + Langfuse; SeaweedFS cho storage.
+
+---
+
+## P5. Co che HITL moi: Nguoi duyet nhan -> Agent moi chay (quyet dinh 2026-10-10)
+
+**Thay doi so voi thiet ke cu (G4):** truoc day `assigned_agent` duoc set ngay khi gan nhan va worker tu chay. **Tu nay:**
+
+```
+Email vao -> AI goi y nhan (source=ai) -> NGUOI DUNG CHON NHAN (dropdown list 14 nhan) + DUYET
+   -> chi khi DUYET xong moi set assigned_agent = {NHAN}_AGENT
+   -> worker moi duoc phep chay agent cua nhan do
+   -> moi agent la MULTI-AGENT chay theo dung quy trinh nghiep vu cua nhan (P6/P7)
+```
+
+- AI **khong tu set** `assigned_agent`, khong tu chay bat cu buoc nghiep vu nao.
+- Nguoi dung chon nhan trong list (goi y cua AI chi la gia tri duoc chon san khi `confidence` cao).
+- Moi agent gom **nhieu node** chay tuan tu co re nhanh; **moi node co checkpoint luu `agent_runs`**; that bai o node nao -> retry node do, khong chay lai tu dau.
+- **Moi diem "gui email ra ngoai" (toi hang/khach) dung lai cho nguoi duyet** — agent chi soan nhap + hien thi.
+
+**Dinh nghia "Xong" cho moi agent moi:** chay end-to-end tu `agent_runs=RUNNING` toi `DONE` tren 1 email that, moi email ra ngoai deu qua man "kiem chinh -> sua -> DUYET -> gui" cua nguoi dung.
+
+---
+
+## P6. Quy trinh INQUIRY_AGENT (Multi-Agent - xu ly email hoi gia cua khach)
+
+**Kich hoat:** nguoi dung chon nhan `INQUIRY` + **DUYET** tren Email Gateway.
+
+```
+ I1. PHAT HIEN FILE  — email co attachment khong?
+     Khong file -> I2b (doc body). Co file -> doc duoi:
+     .pdf / .docx / .xlsx / anh (.png/.jpg/.jpeg)
+        |
+ I2. BOC FILE DUNG CONG CU — moi dinh dang mot extractor:
+     * PDF   -> doc text layer (PyPDF/pdfplumber); scan -> OCR
+     * DOCX  -> python-docx (da co trong pipeline)
+     * XLSX  -> openpyxl doc sheet header (da co trong
+                emails_render.py::_extract_doc_preview)
+     * ANH   -> Gemini vision (file anh tu storage_key)
+     * BODY  -> khach copy-paste -> Gemini trich tu body_clean
+     -> chuan hoa ve: { Part No, Description, UOM, Quantity }
+        |
+ I3. LUU DB — contacts (upsert theo email) + dong order
+     (email_cards.card_json.items hoac bang inquiry_items
+     cua G2 — chot khi lam) kem id_email de truy xuat.
+     -> tao RFQ (status INQUIRY_RECEIVED) + Client upsert.
+        |
+ I4. TAO QUOTATION HANG (RFO) — goi APITemplate.io theo template
+     RFO da cau hinh (APITEMPLATE_* trong .env) -> luu file
+     vao Document (type RFO_QUOTATION_PDF).
+        |
+ I5. SOAN EMAIL HOI GIA HANG — theo mau cong ty (subject/body),
+     kem chu ky cong ty + logo hang ma khach mua, dinh kem
+     Quotation PDF vua tao.
+        |
+ I6. MAN DUYET — hien thi canh nhau: email soan + Quotation PDF
+     + file RFQ goc cua khach. Nguoi dung kiem chinh, sua, dien
+     (To/CC/BCC - default tu DB: Supplier.email/ccEmails),
+     -> DUYET = gui qua MS Graph toi hang -> set RFQ.status =
+     RFO_SENT_TO_SUPPLIER, emails.rfq_id noi ve.
+```
+
+**File cham vao:** `app/services/agents/inquiry_agent.py` (moi) + node `app/services/agents/inquiry/` (i1_detect, i2_extract, i3_save, i4_rfo_pdf, i5_draft_email, i6_review) · BFF webapp `src/app/api/email-gateway/...` · `agent_runs` checkpoint moi node.
+
+---
+
+## P7. Quy trinh QUOTATION_AGENT (Multi-Agent - xu ly mail bao gia cua hang)
+
+**Kich hoat:** nguoi dung chon nhan `QUOTE`/`QUOTATION` + **DUYET**. Thuong la mail **tra loi thread** cua email Inquiry da xu ly (match theo `thread_id` / `in_reply_to` / subject).
+
+```
+ Q1. MATCH VOI INQUIRY — tim email Inquiry goc theo thread;
+     lay rfq_id da noi; hang gui tu Supplier.email nao.
+     Khong match chac -> ESCALATE cho nguoi chon tay.
+        |
+ Q2. BOC FILE BAO GIA — da dinh dang (da so PDF): trich
+     { Part No, don gia hang, MOQ, lead time, dieu kien }.
+     Tai dung gemini-quote.ts cua webapp qua diem noi G2.3.
+     -> cap nhat RFQItem.supplierUnitPrice/extWeightLbs,
+     status SUPPLIER_QUOTED.
+        |
+ Q3. MAN NHAP THAM SO — hien thi du lieu dinh tinh cua khach +
+     form chon: Payment Term, Delivery Term, IncoTerm, loai
+     bang tinh CBU, % margin, cac input CBU khac (default tu DB).
+     Nguoi dung dien/duyet -> luu vao RFQ fields tuong ung.
+        |
+ Q4. TINH CBU — goi engine src/lib/cbu/ (server-side, khong
+     tin so client). Tra bang ket qua tung dong + tong.
+     Nguoi dung check/sua input -> tinh lai -> DUYET gia.
+        |
+ Q5. TAO QUOTATION PDF — APITemplate.io theo template da thiet
+     ke (APITEMPLATE_QUOTATION_TEMPLATE_ID). Luu Document.
+        |
+ Q6. MAN DUYET EMAIL BAO GIA — hien thi email (To/CC tu
+     Client.email trong DB + thong tin khach) + Quotation PDF.
+     Nguoi dung sua/duyet -> GUI: tim dung email goc cua khach
+     theo id_email/thread_id/subject -> REPLY thread do
+     qua MS Graph (khong gui mail moi roi rac), dinh kem PDF.
+     -> RFQ.status = QUOTED_TO_CLIENT.
+```
+
+**File cham vao:** `app/services/agents/quotation_agent.py` (moi) + node `.../agents/quotation/` · `POST /api/rfq/{id}/ingest-supplier-email` (webapp, G2.3) · engine `src/lib/cbu/` (giu nguyen) · BFF inbox.
+
+**Luu y dat ten:** seed 14 nhan dung ten `QUOTE` ca hoi gia lan bao gia hang. Khi lam Q1: hoac dung nhan `QUOTE` chung (phan biet bang huong mail den/tu Supplier.email), hoac them nhan moi `QUOTATION` va sua `seed_labels.py` + `LABELS` — quyet khi lam, ghi lai.
+
+---
+
+## P8. Tinh nang Email Gateway trong webapp PSBV (UI cho email-agent)
+
+**Muc tieu:** nguoi dung chi mo webapp; email-agent hien thi nhu 1 module native cua PSBV — card email sau xu ly + cac trang con tuong tu UI hien tai cua email-agent, nhung **redesign theo dung design system PSBV** (sidebar slate-900, shadcn/ui, Tailwind cua webapp) chu khong copy CSS demo.
+
+### P8.1 — Cau truc trang (trong `psbv-saleadmin-app/`)
+
+```
+src/app/(dashboard)/email-gateway/
+  page.tsx                 # Inbox: card email sau xu ly (loc theo nhan/status/thread)
+  [id]/
+    page.tsx               # Chi tiet email: noi dung + AI summary + labels + thread + attachments
+    review/
+      page.tsx             # MAN DUYET nhan: chon nhan (dropdown 14) + DUYET -> kich hoat agent
+    agent/
+      page.tsx             # Theo doi agent_runs cua email nay (timeline node + log + retry)
+```
+
+**BFF (goi nguoc email-agent qua `EMAIL_AGENT_API_URL`, auth NextAuth o phia browser):**
+
+```
+src/app/api/email-gateway/
+  route.ts                 # GET list (proxy /api/emails + rfqCode join)
+  [id]/route.ts            # GET chi tiet
+  [id]/labels/route.ts     # POST gan nhan (proxy)
+  [id]/approve/route.ts    # POST DUYET nhan -> kich hoat agent (goi worker email-agent)
+  [id]/thread/route.ts     # GET thread
+```
+
+### P8.2 — Sidebar + phan quyen
+
+- Them muc **"Email Gateway"** (icon thu) vao `src/components/shared/sidebar.tsx::navLinks`, **sau** "Don hang RFQ" (vi luong nghiep vu di tu mail -> RFQ). `adminOnly: false` (ca 2 role dung duoc).
+- Badge so email `PENDING_ROUTING` chua duyet (tinh o server component, cache 30s).
+- Trang chi tiet/agent giu nguyen guard `getServerSession` nhu moi route webapp.
+
+### P8.3 — Luong man hinh (khop P5-P7)
+
+1. **Inbox** -> card: subject, nguoi gui, nhan AI goi y (+confidence), `assigned_agent`/status, thread count, co file hay khong.
+2. **Chi tiet** -> 70/30: noi dung + summary + thread + file (tai dung layout email-agent) voi component shadcn/ui.
+3. **Review (DUYET)** -> dropdown 14 nhan (default = goi y AI) -> nut DUYET -> goi `[id]/approve` -> worker chay agent.
+4. **Agent** -> timeline `agent_runs`: node nao xong/xanh, dang chay/vang, loi/do + nut retry; moi email ra deu co man duyet rieng truoc khi gui (I6/Q6).
+5. Tu man chi tiet co nut **"Mo RFQ"** khi `emails.rfq_id` da noi.
+
+### P8.4 — Checklist thuc hien
+
+- [ ] BFF 5 route (proxy + approve kich hoat worker).
+- [ ] 4 trang (inbox / chi tiet / review-duyet / agent-timeline).
+- [ ] Sidebar + badge + guard.
+- [ ] Redesign token PSBV (khong mang CSS demo sang): dung `cn()` + shadcn/ui, mau slate/blue/indigo nhu sidebar hien co.
+- [ ] Danh dau `frontend/` (demo email-agent) la legacy sau khi Gateway live.
 
 ---
 

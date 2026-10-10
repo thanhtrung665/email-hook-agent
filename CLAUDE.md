@@ -147,6 +147,41 @@ agent_configs      (MỚI) name, enabled, prompt, model, rate_limit
 | `SPAM_ADS` | `NONE` | Bỏ qua | đã có |
 | (RFQ `QUOTATION_DRAFTED`) | `EMAIL_REVIEW_AGENT` | Soạn nháp gửi khách | webapp v1 — **đã xong** |
 
+### 2.6 Co che kich hoat agent: NGUOI DUYET NHAN truoc (P5, quyet dinh 2026-10-10)
+
+```
+Email vao -> AI goi y nhan (source=ai, co confidence)
+   -> NGUOI DUNG CHON NHAN trong dropdown 14 nhan + DUYET (Email Gateway)
+   -> chi khi DUYET moi set assigned_agent = {NHAN}_AGENT + status=PROCESSING
+   -> worker chi duoc chay agent nay (khong poll tren nhan AI)
+   -> moi agent = MULTI-AGENT, checkpoint moi node vao agent_runs
+   -> moi diem GUI EMAIL ra ngoai dung cho nguoi xac nhan truoc khi gui
+```
+
+**2 quy trinh multi-agent (danh sach sau, chi tiet SPEC P6/P7):**
+
+| Agent | Nhạn | Node quy trinh |
+|---|---|---|
+| `INQUIRY_AGENT` (P6) | `INQUIRY` | I1 phat hien file (khong file/body, pdf/docx/xlsx/anh) -> I2 boc tung cong cu -> I3 luu DB + tao RFQ -> I4 tao Quotation hang (APITemplate) -> I5 soạn mail hoi hang kem chu ky + logo -> I6 MAN DUYET (kiem chinh/sua/dien To-CC) -> GUI toi hang -> `RFO_SENT_TO_SUPPLIER` |
+| `QUOTATION_AGENT` (P7) | `QUOTE` | Q1 match inquiry (thread_id/in_reply_to) -> Q2 boc file bao gia -> Q3 man nhap tham so (Payment/Delivery/IncoTerm + input CBU) -> Q4 tinh CBU (`src/lib/cbu/`) -> Q5 tao Quotation PDF (APITemplate) -> Q6 MAN DUYET email khach + PDF -> REPLY dung thread cong khach -> `QUOTED_TO_CLIENT` |
+
+**Ten nhan:** seed 14 nhan dung `QUOTE` cho ca 2 huong (hiep + hang). Luc lam P7 chon 1 trong 2: dung chung `QUOTE` (phan biet bang Supplier.email) hoac them `QUOTATION` moi.
+
+### 2.7 Email Gateway (P8) — 1 module trong webapp PSBV, khong phai UI rieng nua
+
+- **Webapp `psbv-saleadmin-app`** la UI duy nhat nguoi dung mo. Email Agent khong co UI rieng — `frontend/` (email-agent) chuyen sang LEGACY sau khi Gateway live.
+- **Cau truc trang:**
+  ```
+  src/app/(dashboard)/email-gateway/
+    page.tsx           Inbox — card email sau xu ly (loc theo nhan/status/thread)
+    [id]/page.tsx      Chi tiet — noi dung + summary + labels + thread + attachments
+    [id]/review/       MAN DUYET nhan: dropdown 14 nhan + DUYET -> kich hoat agent
+    [id]/agent/        Timeline agent_runs: node xong/dang chay/loi + retry
+  ```
+- **BFF (proxy nguoc email-agent qua `EMAIL_AGENT_API_URL`, auth NextAuth):** `src/app/api/email-gateway/{route, [id]/route, [id]/labels, [id]/approve, [id]/thread}`.
+- **Sidebar:** muc "Email Gateway" trong `src/components/shared/sidebar.tsx::navLinks`, ngay SAU "Don hang RFQ". `adminOnly: false`, badge so email chua duyet.
+- **Design:** dung shadcn/ui + Tailwind cua webapp (slate-900/blue/indigo nhu sidebar), **khong copy CSS demo tu `frontend/`** — chi copy noi dung layout 70/30 + thu tu truong (SPEC Giai doan 5 cua email-agent).
+
 ## 3. Lệnh thường dùng
 
 ```powershell

@@ -115,6 +115,36 @@
 
 ---
 
+## 2026-10-10 (6) — SPEC P5/P6/P7/P8: đổi cơ chế sang approve-first + Email Gateway trong webapp
+
+**Yêu cầu người dùng (2026-10-10):** người dùng chọn nhãn thủ công (từ list 14 nhãn), DUYỆT thì mới match với Agent của nhãn đó và mới bắt đầu tự động thực hiện; mỗi agent là multi-agent theo quy trình (sẽ mô tả sau); thêm tính năng "Email Gateway" trong webapp PSBV — card email sau xử lý + các trang kèm theo tương tự UI email-agent hiện tại nhưng redesign chuẩn PSBV.
+
+### Tài liệu cập nhật
+
+| File | Nội dung mới |
+|---|---|
+| **SPEC.md** | Thêm **P5** (approve-first: AI gợi ý → người CHỌN + DUYỆT → worker mới chạy), **P6** (INQUIRY_AGENT 6 node I1–I6: phát hiện file → bóc đúng công cụ → lưu DB/RFQ → tạo RFO PDF qua APITemplate → soạn mail hãng → màn duyệt), **P7** (QUOTATION_AGENT 6 node Q1–Q6: match inquiry → bóc file giá → nhập tham số → tính CBU → tạo Quotation PDF → reply đúng thread khách), **P8** (Email Gateway: 4 trang + BFF 5 route + sidebar + checklist). Cập nhật lại G1.2 (tick xong), G2.2 (chỉ chạy sau DUYỆT), G4 (chỉ poll nhãn đã duyệt). |
+| **CLAUDE.md** | §2.6 (cơ chế kích hoạt + bảng 2 quy trình multi-agent), §2.7 (Email Gateway cấu trúc/BFF/sidebar/design), sửa quy tắc "định tuyến theo nhãn" → "approve-first". |
+| **AGENTS.md** | Viết lại quy tắc agent (giữ nguyên khối `nextjs-agent-rules` do `next dev` sinh): đọc trước, nguyên tắc bất biến, quy tắc DB, checklist thêm agent, quy tắc Gateway, quy tắc an toàn. |
+
+### Code kèm theo
+
+| File | Thay đổi |
+|---|---|
+| `app/db/models.py` | Model **`AgentRun`** (bảng `agent_runs` đã có từ G1.2): checkpoint từng node, status QUEUED/RUNNING/DONE/FAILED/ESCALATED. |
+| `app/core/config.py` | Thêm `WEBAPP_BASE_URL` (mặc định localhost:3000) + `SERVICE_ROLE_SECRET` — cho điểm nối G2 và BFF P8. |
+| `.env.example` | Bổ sung 2 biến trên. |
+
+`ruff check` + `mypy` trên các file đổi: **sạch**; 2 field mới có default → tương thích ngược.
+
+### Chưa làm (tiếp theo theo lộ trình G4)
+
+- Code 2 multi-agent `inquiry_agent.py` / `quotation_agent.py` (6 node mỗi agent) + `agent_runner`.
+- `POST /api/emails/{id}/approve` (đường DUYỆT kích hoạt worker).
+- BFF 5 route + 4 trang Email Gateway (P8).
+
+---
+
 ### Tiếp theo (theo SPEC Phần I)
 
 - **G0.1:** điền 2 dòng còn thiếu vào `.env` → backend chạy lại 200.

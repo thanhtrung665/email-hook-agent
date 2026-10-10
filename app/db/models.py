@@ -152,3 +152,22 @@ class EmailCard(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     email: Mapped["Email"] = relationship(back_populates="card")
+
+
+class AgentRun(Base):
+    """Checkpoint tung node multi-agent (P5/P6/P7). Phan B thuoc G1.2 trong DB."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_email: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("emails.id_email", ondelete="CASCADE"), index=True)
+    rfq_id: Mapped[str | None] = mapped_column(String, index=True)
+    agent_name: Mapped[str] = mapped_column(String(100), index=True)
+    label_name: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(20), default="QUEUED", index=True)  # QUEUED | RUNNING | DONE | FAILED | ESCALATED
+    input_json: Mapped[dict | None] = mapped_column(JSONB)
+    output_json: Mapped[dict | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
