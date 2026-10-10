@@ -76,6 +76,20 @@
 
 ---
 
+## 2026-10-10 (4) — G0.2: sửa 3 bug B1–B3 + chuẩn bị G1.2 (commit `54b08ee`)
+
+| ID | Đã làm | Kiểm chứng |
+|---|---|---|
+| B1 | `app/scripts/seed_labels.py`: `from app.models import Label` → `from app.db.models import Label`; `from app.db.session import SessionLocal` → `from app.db.base import SessionLocal`; ruff sạch | Import không lỗi. **Chưa chạy seed trên DB đích** — 8 bảng email-agent chưa tồn tại ở đó (đúng lộ trình: G1 chạy trước) |
+| B2 | `app/api/emails_render.py::assign_email_label`: bỏ `db.merge()` → lookup-existing/update-add; bỏ `is_primary` trên mọi nhãn cũ trước khi thêm nhãn mới; dọn đoạn dead-code sót khi viết | Ruff + mypy (file đổi) sạch. Test thật cần schema G1 |
+| B3 | `app/services/email_analyzer_agent.py`: bỏ lệnh cấm phân loại → prompt bắt buộc chọn 1/14 nhãn + confidence/reason | **Test thật với Gemini: 4 email → QUOTE/SPAM_ADS/DELIVERY_TICKET đúng hết, confidence 1.0** ✅ |
+| G1.2 | Viết `scripts/g1_2_create_email_agent_schema.sql` — tạo 9 bảng (`labels`, `contacts`, `mailboxes`, `emails`, `email_labels`, `attachments`, `email_summaries`, `email_cards`, **`agent_runs`** — bảng mới cho Platform) — toàn `IF NOT EXISTS`, kiểm chứng sau chạy (kỳ vọng: 9 bảng + `RFQ` vẫn 36) | Chạy bằng **Supabase Dashboard → SQL Editor** (bị chặn chạy bằng CLI trên production) |
+| baseline | Chụp snapshot DB đích → `scripts/baseline_before_email_agent_schema.json` (User=5, RFQ=36, RFQItem=168, Client=19, Document=45…) | Để so sánh sau migration |
+
+**Còn lại (cần bạn):** chạy `g1_2_create_email_agent_schema.sql` trong SQL Editor, chụp kết quả 2 câu `select` kiểm chứng gửi tôi → tôi bật seed, test đầy đủ, vào **G2**. `ruff check .` toàn repo xanh; 3 lỗi mypy còn lại là shim talon cố ý (không liên quan G0.2).
+
+---
+
 ### Tiếp theo (theo SPEC Phần I)
 
 - **G0.1:** điền 2 dòng còn thiếu vào `.env` → backend chạy lại 200.

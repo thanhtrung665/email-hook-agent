@@ -80,9 +80,9 @@
 
 | ID | Bug | File cần sửa | Tiêu chí |
 |---|---|---|---|
-| B1 | `seed_labels.py` import sai → crash | `app/scripts/seed_labels.py`: `from app.models import Label` → `from app.db.models import Label`; `from app.db.session import SessionLocal` → `from app.db.base import SessionLocal` | `python -X utf8 -m app.scripts.seed_labels` chạy 2 lần không lỗi (idempotent) |
-| B2 | `db.merge()` với PK composite `(email,label,source)` → bản ghi trùng, 2 dòng `is_primary=True` | `app/api/emails_render.py::assign_email_label`: đổi `merge` → `select`-rồi-`add`/`update`, và unset `is_primary` của các nhãn khác trước khi set nhãn chính | Gán lại cùng nhãn 10 lần → DB vẫn 1 dòng |
-| B3 | Prompt AI cấm phân loại → `label_prediction=None` → `email_labels` source=`ai` rỗng | `app/services/email_analyzer_agent.py`: bỏ lệnh cấm, cho model trả `label_prediction` (1 trong 14 tên nhãn) + `confidence`; `pipeline` ghi `EmailLabel(source="ai", confidence=...)` | 30 email thật có ≥1 dòng `source="ai"` |
+| B1 ✅ | `seed_labels.py` import sai → crash | ĐÃ SỬA (2026-10-10): `from app.db.models import Label`, `from app.db.base import SessionLocal`; thứ tự import theo ruff. LƯU Ý: chưa chạy seed được trên DB đích vì 8 bảng email-agent **chưa tồn tại** (chờ G1 bên dưới) | Chạy sau khi có schema G1 |
+| B2 ✅ (code) | `db.merge()` với PK composite → bản ghi trùng | ĐÃ SỬA (2026-10-10): bỏ `merge` → lookup-existing → update/add; bỏ `is_primary=True` trên **mọi** nhãn cũ trước khi thêm nhãn mới (HITL thắng). Ruff + mypy các file đổi: sạch | Test thật chờ DB schema (G1) — hoặc chạy trên SQLite nếu bỏ BYTEA test |
+| B3 ✅ | Prompt AI cấm phân loại → `label_prediction=None` | ĐÃ SỬA + TEST THẬT (2026-10-10): viết lại prompt yêu cầu chọn 1/14 nhãn + confidence/reason. Test với Gemini thật: QUOTE/SPAM_ADS/DELIVERY_TICKET, 3/3 đúng, confidence 1.0. `pipeline` đã có sẵn code ghi `EmailLabel(source="ai")` — chỉ chờ nhãn ra khỏi None | ✅ |
 | B4 | `assigned_agent` không ai thực thi | Xem G4.1 — đánh dấu "ở G4" | — |
 | B5 | `EmailSummary.model` hardcode, `sent_at` lấy từ `createdDateTime`, `email_count` tăng cả email trùng, không dedupe race webhook↔worker | `email_processing_pipeline.py`, `ingestion_worker.py`: thêm retry/backoff LLM, dedupe theo unique constraint trước khi tăng `email_count` | — |
 
