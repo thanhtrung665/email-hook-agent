@@ -1,0 +1,54 @@
+# Email Hook Agent — stack chạy trên VPS (Ubuntu 24.04)
+#
+# Chuẩn bị:
+#   1. Copy .env (đầy đủ secrets) vào cùng thư mục với file này.
+#   2. Webhook: Microsoft phải gọi được backend → mở port 8000 hoặc
+#      dùng ngrok; WEBHOOK_BASE_URL trong .env phải trỏ tới host công khai.
+#
+# Chạy:
+#   docker compose up -d --build
+#   docker compose logs -f backend
+#
+# Dừng:
+#   docker compose down
+
+services:
+  backend:
+    build: .
+    container_name: email-agent-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Giữ file đính kèm local qua restart (LocalStorage), chia sẻ thư mục
+      # với host để dễ backup/audit
+      - ./storage:/code/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # NEXT_PUBLIC_* được bake vào lúc build (inlined) — phải truyền ở đây,
+      # biến runtime bên dưới chỉ là lớp phụ.
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+    container_name: email-agent-frontend
+    restart: unless-stopped
+    environment:
+      # API backend nhìn từ TRÌNH DUYỆT người dùng (không phải từ container).
+      # Nếu truy cập VPS qua IP/domain khác localhost, đổi thành
+      # http://<vps-ip>:8000/api
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy

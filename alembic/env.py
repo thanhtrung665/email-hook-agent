@@ -1,12 +1,13 @@
+import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
-from alembic import context
-import os
 from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
+
+import app.db.models  # noqa: F401 — đăng ký model vào Base.metadata cho autogenerate
+from alembic import context
 from app.db.base import Base
+
 load_dotenv()
 
 # this is the Alembic Config object, which provides
@@ -62,6 +63,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    target_metadata = Base.metadata
+
+    # Override sqlalchemy.url từ biến môi trường DATABASE_URL
+    db_url = os.environ.get("DATABASE_URL", "")
+    if db_url:
+        # Đảm bảo dùng driver psycopg3
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1).replace("postgres://", "postgresql+psycopg://", 1)
+        config.set_main_option("sqlalchemy.url", db_url)
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

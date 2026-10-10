@@ -1,0 +1,113 @@
+%%{init: {"theme": "neutral"}}%%
+erDiagram
+    %% Bảng mailboxes: Lưu thông tin các hộp thư (Outlook/Gmail) được kết nối vào hệ thống
+    mailboxes {
+        uuid id_mailbox PK %% Ví dụ: 123e4567-e89b-12d3-a456-426614174000
+        varchar email_address UK %% Ví dụ: support@congtyabc.vn, sales@congtyabc.vn
+        varchar provider %% Ví dụ: outlook, gmail
+        bytea oauth_access_token %% Ví dụ: <dữ liệu nhị phân mã hóa của Access Token>
+        bytea oauth_refresh_token %% Ví dụ: <dữ liệu nhị phân mã hóa của Refresh Token>
+        timestamptz token_expires_at %% Ví dụ: 2026-10-06T10:00:00Z
+        varchar webhook_subscription_id %% Ví dụ: 5f9e2b1c-7d4a-4c8b-9e1f-2a3b4c5d6e7f
+        timestamptz webhook_expires_at %% Ví dụ: 2026-10-08T10:00:00Z
+        text sync_cursor %% Ví dụ: AQAQAAAAAADc... (Delta token để MS Graph biết đã đồng bộ tới đâu)
+        timestamptz created_at %% Ví dụ: 2026-10-01T08:00:00Z
+    }
+
+    %% Bảng contacts: Lưu hồ sơ người gửi/người nhận để phân tích lịch sử tương tác
+    contacts {
+        uuid id_contact PK %% Ví dụ: 987f6543-e21b-12d3-a456-426614174000
+        varchar email_address UK %% Ví dụ: khachhang@gmail.com, ceo@doitac.com
+        varchar sender_name %% Ví dụ: Nguyễn Văn A, Trần Thị B
+        varchar company %% Ví dụ: Công ty TNHH ABC, Tập đoàn XYZ
+        varchar phone %% Ví dụ: 0901234567, +84987654321
+        boolean is_internal %% Ví dụ: true (nếu gửi từ tên miền công ty), false
+        boolean is_known_customer %% Ví dụ: true (nếu đã có trong CRM), false
+        timestamptz first_seen_at %% Ví dụ: 2026-09-15T09:30:00Z
+        timestamptz last_seen_at %% Ví dụ: 2026-10-06T09:47:00Z
+        int email_count %% Ví dụ: 15, 2 (Tổng số email đã gửi tới hệ thống)
+    }
+
+    %% Bảng emails: Bảng trung tâm lưu trữ thông tin và trạng thái của mỗi email
+    emails {
+        uuid id_email PK %% Ví dụ: a1b2c3d4-e89b-12d3-a456-426614174000
+        uuid id_mailbox FK %% Liên kết hộp thư nhận email này
+        uuid id_sender FK %% Liên kết hồ sơ người gửi
+        varchar message_id %% Ví dụ: <CA+xyz@mail.gmail.com> (ID gốc từ nhà cung cấp)
+        varchar thread_id %% Ví dụ: <thread-12345@outlook.com> (Để gom nhóm luồng hội thoại)
+        varchar in_reply_to %% Ví dụ: <CA+abc@mail.gmail.com> (Trả lời cho email nào)
+        text subject %% Ví dụ: Đề nghị báo giá phần mềm, Phản hồi lỗi hệ thống
+        timestamptz sent_at %% Ví dụ: 2026-10-06T09:45:00Z (Giờ người gửi bấm nút Send)
+        timestamptz received_at %% Ví dụ: 2026-10-06T09:47:00Z (Giờ hệ thống nhận được)
+        text body_text %% Ví dụ: "Chào bạn, mình cần báo giá..."
+        text body_clean %% Ví dụ: "Chào bạn, mình cần báo giá..." (Đã tự động cắt bỏ chữ ký và reply cũ)
+        varchar language %% Ví dụ: vi, en
+        boolean has_attachments %% Ví dụ: true, false
+        varchar status %% Ví dụ: PENDING_ROUTING, PROCESSING, DONE, ERROR
+        varchar assigned_agent %% Ví dụ: CRM_AGENT, SUPPORT_AGENT (Agent sẽ xử lý tiếp theo)
+        jsonb security_flags %% Ví dụ: {"risk_level": "high", "flags": ["Tên miền nhái", "Yêu cầu chuyển tiền gấp"]}
+        varchar raw_storage_key %% Ví dụ: s3://bucket/raw/2026/10/06/id.eml
+        varchar html_storage_key %% Ví dụ: s3://bucket/html/2026/10/06/id.html
+        timestamptz created_at %% Ví dụ: 2026-10-06T09:47:05Z
+    }
+
+    %% Bảng labels: Danh mục các nhãn/công việc hệ thống hỗ trợ
+    labels {
+        int id_label PK %% Ví dụ: 1, 2, 3
+        varchar label_name UK %% Ví dụ: SUPPORT, SALES_LEAD, INVOICE, SPAM
+        text description %% Ví dụ: Khách hàng hỏi, báo lỗi, phàn nàn về sản phẩm
+        smallint priority %% Ví dụ: 100, 50 (Dùng để sắp xếp độ ưu tiên hiển thị)
+        boolean is_active %% Ví dụ: true, false
+    }
+
+    %% Bảng email_labels: Bảng trung gian ghi nhận email nào được gán nhãn nào, do ai gán
+    email_labels {
+        uuid id_email PK, FK %% Liên kết email
+        int id_label PK, FK %% Liên kết nhãn
+        varchar source PK %% Ví dụ: user (Người dùng chọn), ai (LLM tự gán), rule (Quy tắc cứng)
+        boolean is_primary %% Ví dụ: true (Nhãn chính trịnh trọng nhất), false (Nhãn phụ)
+        real confidence %% Ví dụ: 1.0 (Nếu user chọn), 0.85 (Nếu AI dự đoán)
+        text reason %% Ví dụ: "Khớp từ khóa 'hóa đơn'", "Người dùng duyệt"
+        timestamptz created_at %% Ví dụ: 2026-10-06T09:50:00Z
+    }
+
+    %% Bảng attachments: Metadata của các file đính kèm
+    attachments {
+        uuid id_attachment PK %% Ví dụ: 11223344-5566-7788-99aa-bbccddeeff00
+        uuid id_email FK %% Liên kết email chứa file
+        varchar file_name %% Ví dụ: BaoGia_2026.pdf, bug_screenshot.png
+        varchar mime_type %% Ví dụ: application/pdf, image/png
+        bigint size_bytes %% Ví dụ: 1048576 (1MB), 25600 (25KB)
+        char sha256 %% Ví dụ: e3b0c44298fc1c149afbf4c8996fb... (Dùng để check file trùng lặp hoặc chứa mã độc)
+        varchar storage_key %% Ví dụ: s3://bucket/attachments/id.pdf
+        boolean is_inline %% Ví dụ: false, true (Nếu là ảnh logo chèn trực tiếp trong nội dung mail)
+        varchar process_status %% Ví dụ: pending, extracted, blocked
+    }
+
+    %% Bảng email_summaries: Kết quả trích xuất và tóm tắt từ Summarizer Agent
+    email_summaries {
+        uuid id_summary PK %% Ví dụ: 99887766-5544-3322-1100-aabbccddeeff
+        uuid id_email FK %% Liên kết email
+        text content_summarized %% Ví dụ: "Khách hàng yêu cầu báo giá phần mềm quản lý kho cho 3 chi nhánh trong tuần này."
+        jsonb key_points %% Ví dụ: {"action_items": [{"task": "Gửi báo giá", "due_date": "2026-10-08"}], "sentiment": "neutral"}
+        varchar model %% Ví dụ: gemini-1.5-pro, claude-3-5-sonnet
+        varchar prompt_version %% Ví dụ: v1.2, v2.0 (Lưu lại phiên bản prompt để debug eval)
+        timestamptz created_at %% Ví dụ: 2026-10-06T09:48:00Z
+    }
+
+    %% Bảng email_cards: Dữ liệu đã được flatten (phẳng hóa) thành JSON để giao diện UI tải siêu tốc
+    email_cards {
+        uuid id_email PK, FK %% Liên kết email
+        jsonb card_json %% Ví dụ: {"email_id": "uuid", "sender_name": "Nguyễn Văn A", "tldr": "Yêu cầu báo giá", "needs_review": true}
+        int version %% Ví dụ: 1, 2 (Tăng lên mỗi khi thẻ bị cập nhật)
+        timestamptz updated_at %% Ví dụ: 2026-10-06T09:55:00Z
+    }
+
+    %% CÁC ĐƯỜNG DÂY LIÊN KẾT (RELATIONSHIPS)
+    mailboxes ||--o{ emails          : "contains"
+    contacts  ||--o{ emails          : "sends"
+    emails    ||--o{ email_labels    : "labeled"
+    labels    ||--o{ email_labels    : "applied"
+    emails    ||--o{ attachments     : "has"
+    emails    ||--o{ email_summaries : "summarized"
+    emails    ||--o| email_cards     : "rendered as"

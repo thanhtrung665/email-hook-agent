@@ -1,0 +1,91 @@
+[project]
+name = "email-hook-agent"
+version = "1.0.0"
+description = "Email Hook Agent — multi-agent xử lý email Outlook (Graph + Gemini + Supabase)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "fastapi>=0.140",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.18",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "requests>=2.32",
+    "msal>=1.31",
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-google-genai>=2.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.3",
+    "talon>=1.4.4",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+    "supabase>=2.7",
+    "pytz>=2024.2",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "types-requests>=2.32",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["alembic/versions", ".venv", "frontend", "storage"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",   # dòng dài — để formatter tự lo, code cũ nhiều chuỗi tiếng Việt
+    "B008",   # default param trong FastAPI Depends
+    "E741",   # tên biến l / I / O trong code cũ
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test script chạy trực tiếp, import order không quan trọng
+"app/tests/*" = ["E402", "T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+# Project không có __init__.py (namespace package) — cần explicit_package_bases
+explicit_package_bases = true
+mypy_path = "."
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+no_implicit_optional = false
+warn_return_any = false
+show_error_codes = true
+pretty = true
+exclude = [
+    "^alembic/",
+    "^frontend/",
+    "^\\.venv/",
+    "^storage/",
+]
+
+[[tool.mypy.overrides]]
+module = "app.tests.*"
+ignore_errors = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
