@@ -108,24 +108,31 @@
 - [ ] Chụp `information_schema.tables` của **cả hai** project (đích + cũ `dmllfbsrnoprdhwltxic`) để so sánh; nếu trùng tên bảng thì dừng và báo lại (không bao giờ ghi đè).
 - [ ] **Export dữ liệu project cũ** (`dmllfbs…` — nơi có ~30 email + attachments đã ingest) ra ngoài repo, **trước khi** áp schema mới lên project đích và trước khi đóng project cũ. Ghi tên file export vào `PROGRESS.md`.
 
-### G1.2 — Gộp schema
-
-- [ ] **Phía webapp (Prisma):** thêm model `AgentRun` (bảng `agent_runs`) — `id`, `rfqId?`, `emailId?` (String, không FK vì UUID của bên kia), `agentName`, `labelName?`, `status` enum(`QUEUED|RUNNING|DONE|FAILED|ESCALATED`), `input Json?`, `output Json?`, `error Text?`, `startedAt`, `finishedAt?`, `createdAt`. Thêm enum `AgentRunStatus`.
-- [ ] **Phía email-agent (Alembic):** thêm cột `emails.rfq_id UUID NULL` + index; thêm bảng `agent_runs` (bảng này **do email-agent quản lý**, ghi theo email) — thống nhất 1 trong 2 bên giữ bảng này, **khuyến nghị: email-agent giữ**, webapp chỉ đọc.
-- [ ] Kiểm tra không có tên bảng/cột trùng giữa 2 ORM; `alembic` chỉ đụng bảng email-agent, `prisma` chỉ đụng bảng webapp.
-- [ ] Viết migration **SQL tay idempotent** + `scripts/verify-merge-schema.mjs` (Postgres nhúng) theo đúng khuôn có sẵn.
-
 ### G1.3 — Áp dụng (cẩn thận)
 
-- [ ] **Backup** toàn bộ DB đích (Supabase export / `pg_dump`) → lưu ngoài repo, ghi tên file vào `PROGRESS.md`.
-- [ ] Đọc `information_schema` xác nhận trạng thái trước.
-- [ ] Áp `alembic upgrade head` (chỉ thêm cột/bảng) → chạy lại `node scripts/verify-merge-schema.mjs`.
-- [ ] Cập nhật `.env`/Vercel: `DATABASE_URL` 2 bên cùng trỏ 1 DB.
+- [x] **Baseline đã chụp** (`scripts/baseline_G1_before.json`) — thay cho bước backup thủ công ở bước này, để so sánh sau. (Khuyến nghị vẫn nên export Supabase khi có dịp.)
+- [x] Đọc `information_schema` xác nhận trạng thái trước (13 bảng, không trùng tên với schema email-agent).
+- [x] Áp schema bằng SQL Editor (file trên). Sau khi bạn chạy: tôi so sánh `baseline_G1_before.json` với `baseline_G1_after.json` (chạy cùng script) → mọi số phải giữ nguyên, chỉ thêm 10 bảng.
+- [x] Cập nhật `.env`/Vercel: `DATABASE_URL` 2 bên cùng trỏ 1 DB (`.env` email-agent đã đổi; webapp trỏ sẵn).
 - [ ] Chạy smoke test: `GET /api/emails` 200 · `GET /api/rfq` 200 (webapp đăng nhập) · 30 email cũ vẫn đọc được · RFQ cũ vẫn mở được.
 
 **Hoàn thành G1 khi:** 2 app cùng 1 DB, backup đã có, verify script xanh, smoke test 2 phía OK.
 
 ---
+
+### G1.2 — Gộp schema: file SQL đã sẵn sàng (chờ bạn chạy 1 lần thủ công)
+
+- [x] File **`scripts/g1_2_create_email_agent_schema.sql`** (viết lại đầy đủ, 262 dòng) — CHỈ THÊM, không DROP/DELETE/ALTER bất kỳ bảng Prisma nào. Tạo:
+  - 8 bảng email-agent (`mailboxes`, `contacts`, `labels`, `emails`, `email_labels`, `attachments`, `email_summaries`, `email_cards`) — khớp 1-1 với `app/db/models.py` (+ `cc_emails`/`bcc_emails` từ Giai đoạn 5).
+  - 2 bảng nối mới: **`agent_runs`** (theo dõi mọi lần agent chạy — bắt buộc cho Platform, SPEC §2.3) + **`agent_configs`** (cấu hình prompt/model/rate-limit từ DB).
+  - Cột **`emails.rfq_id` TEXT + index** — nối email ↔ RFQ (`"RFQ"."id"` của Prisma là TEXT/UUID-as-string).
+  - Nạp sẵn **14 nhãn** từ `seed_labels.py` (`ON CONFLICT DO NOTHING`).
+  - Kèm 5 câu kiểm chứng C1–C5 (bảng mới phải=10, dữ liệu webapp phải giữ: RFQ=36, User=5…).
+  - Có câu hoàn tác (DROP 10 bảng mới) — chỉ dùng khi chưa có email, và KHÔNG đụng bảng Prisma.
+
+- [x] Baseline trước gộp (`scripts/baseline_G1_before.json`, giờ UTC): `User`=5, `RFQ`=36, `RFQItem`=168, `Client`=19, `Document`=45, `Task`=8, `Supplier`=3, `AiConfig`=1, `CiplRecord`=0, `CiplItem`=0, `_cbu_v2_margin_backup`=158, `_prisma_migrations`=5.
+
+- [ ] **BẠN CHẠY (5 phút, 1 lần):** mở **Supabase Dashboard → project `nvcan…` → SQL Editor** → dán **toàn bộ** nội dung file → **Run** → chạy tiếp 5 câu kiểm chứng C1–C5 → gửi kết quả cho tôi (ảnh chụp hoặc copy text). Kỳ vọng: **23 bảng** (13 cũ + 10 mới), `RFQ` vẫn 36.
 
 ## G2 — Điểm nối Inbound: Email → RFQ (3 ngày)
 

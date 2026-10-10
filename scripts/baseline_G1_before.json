@@ -1,0 +1,34 @@
+{
+  "when": "2026-10-10T04:43:51+00:00",
+  "db": "nvcanmdfdmyllvopxdst (webapp production)",
+  "tables": {
+    "AiConfig": 1,
+    "CiplItem": 0,
+    "CiplRecord": 0,
+    "Client": 19,
+    "Document": 45,
+    "MasterPart": 0,
+    "RFQ": 36,
+    "RFQItem": 168,
+    "Supplier": 3,
+    "Task": 8,
+    "User": 5,
+    "_cbu_v2_margin_backup": 158,
+    "_prisma_migrations": 5
+  },
+  "all_tables": [
+    "AiConfig",
+    "CiplItem",
+    "CiplRecord",
+    "Client",
+    "Document",
+    "MasterPart",
+    "RFQ",
+    "RFQItem",
+    "Supplier",
+    "Task",
+    "User",
+    "_cbu_v2_margin_backup",
+    "_prisma_migrations"
+  ]
+}
