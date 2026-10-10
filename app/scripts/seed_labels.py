@@ -1,8 +1,7 @@
 import logging
 
-from app.models import Label
-
-from app.db.session import SessionLocal
+from app.db.base import SessionLocal
+from app.db.models import Label
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -175,16 +175,32 @@ def assign_email_label(email_id: str, payload: LabelAssignRequest, db: Session =
     if not label:
         raise HTTPException(status_code=404, detail="Nhãn không hợp lệ")
 
-    # 1. Ghi nhận lịch sử gán nhãn thủ công (Lưu vào bảng email_labels)
-    new_email_label = EmailLabel(
-        id_email=email.id_email,
-        id_label=label.id_label,
-        source="user",
-        is_primary=True,
-        confidence=1.0,
-        reason=payload.reason
-    )
-    db.merge(new_email_label)
+    # 1. Ghi nhận lịch sử gán nhãn thủ công — idempotency + xử lý is_primary
+    existing = db.query(EmailLabel).filter(
+        EmailLabel.id_email == email.id_email,
+        EmailLabel.id_label == label.id_label,
+        EmailLabel.source == "user",
+    ).first()
+    if existing:
+        existing.is_primary = True
+        existing.confidence = 1.0
+        if payload.reason is not None:
+            existing.reason = payload.reason
+    else:
+        # bỏ is_primary của mọi nhãn khác trên cùng email (kể cả nhãn AI) — HITL thắng
+        db.query(EmailLabel).filter(
+            EmailLabel.id_email == email.id_email,
+            EmailLabel.is_primary.is_(True),
+        ).update({EmailLabel.is_primary: False}, synchronize_session=False)
+        new_email_label = EmailLabel(
+            id_email=email.id_email,
+            id_label=label.id_label,
+            source="user",
+            is_primary=True,
+            confidence=1.0,
+            reason=payload.reason,
+        )
+        db.add(new_email_label)
 
     # 2. Xử lý logic định tuyến (Routing) dựa trên loại nhãn
     if label.label_name == "SPAM_ADS":

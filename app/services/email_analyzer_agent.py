@@ -77,7 +77,23 @@ HƯỚNG DẪN CHI TIẾT:
 
 LƯU Ý QUAN TRỌNG:
 - Chỉ sử dụng thông tin có trong nội dung email, tuyệt đối không bịa đặt.
-- KHÔNG tự ý phân loại nhãn (Label), hệ thống sẽ do con người tự quyết định."""),
+- **PHÂN LOẠI NHÃN (BẮT BUỘC):** dựa trên nội dung email, chọn ĐÚNG 1 nhãn dưới đây và đưa vào `label_prediction.suggested_label`
+  (không được để None trừ khi hoàn toàn không xác định):
+  INQUIRY — Hỏi đáp, tìm hiểu thông tin chung
+  QUOTE — Yêu cầu/hồi đáp báo giá
+  PO — Đơn đặt hàng
+  PROFORMA_INVOICE — Hoá đơn tạm tính
+  MISA_MVPO — Chứng từ Misa MVPO
+  SOA — Sales Order Acknowledgement (báo hàng ready)
+  CIPL_CERTIFICATES — CIPL / chứng từ hải quan / chứng nhận
+  ORDER_PICTURE — Hình ảnh đơn hàng
+  AWB_BOL — Vận đơn AWB/BOL cần giải nghĩa
+  SED — Tờ khai xuất khẩu Mỹ
+  SHIPMENT_DOCUMENT — Chứng từ hãng tàu/bay gửi về (báo shipment)
+  DELIVERY_TICKET — Phiếu giao hàng chờ bản ký
+  EXCEPTION — Ngoại lệ / phức tạp
+  SPAM_ADS — Quảng cáo / spam
+  Đồng thời ước lượng `confidence` (0.0–1.0) và `reason` ngắn gọn."""),
             ("human", """
 THÔNG TIN METADATA:
 - Người gửi: {sender}
